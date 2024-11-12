@@ -14,26 +14,30 @@ find_path(PBC_INCLUDE_DIR pbc/pbc.h)
 find_path(GMP_INCLUDE_DIR gmp.h)
 
 # 添加可执行文件
-add_executable(lktrs_test main.cpp)
+add_executable(lktrs 
+    lktrs.cpp 
+    accumulator.cpp
+    main.cpp
+)
 
 # 包含目录
-target_include_directories(lktrs_test PRIVATE
+target_include_directories(lktrs PRIVATE
         ${PBC_INCLUDE_DIR}
         ${GMP_INCLUDE_DIR}
         )
 
 # 链接库
-target_link_libraries(lktrs_test
+target_link_libraries(lktrs
         ${PBC_LIBRARY}
         ${GMP_LIBRARY}
         )
 
 # 如果在 Unix-like 系统上需要数学库
 if(UNIX)
-    target_link_libraries(lktrs_test m)
+    target_link_libraries(lktrs m)
 endif()
 
 # 设置编译选项
 if(CMAKE_COMPILER_IS_GNUCXX)
-    target_compile_options(lktrs_test PRIVATE -Wall -Wextra)
+    target_compile_options(lktrs PRIVATE -Wall -Wextra)
 endif()
