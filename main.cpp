@@ -26,13 +26,31 @@ int main() {
     std::cout << "Key generation successful" << std::endl;
 
     // 生成n对密钥...
-
-    // 构建一个由n个用户组成的环
+    constexpr int N = 10;
+    std::vector<std::pair<PublicKey, SecretKey>> keys;
+    std::vector<PublicKey> L;
+    for(int i = 0; i < N; i++) {
+        auto key_pair = scheme.KeyGen();
+        keys.push_back(key_pair);
+        L.push_back(key_pair.first);
+    }
 
     // 签名
+    std::string msg = "some transaction msg";
+    int cnt = 0;
+    element_t my_nym;
+    auto sig = scheme.RSign(sk, pk, L, msg, cnt, my_nym);
 
     // 验证
+    bool result = scheme.RVer(L, msg, my_nym, sig);
+    if(result) {
+        std::cout << "verify OK" << std::endl;
+    } 
+    else {
+        std::cout << "verify failed" << std::endl;
+    }
 
+    element_clear(my_nym);
     return 0;
 }
 
