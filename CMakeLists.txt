@@ -15,6 +15,7 @@ find_path(GMP_INCLUDE_DIR gmp.h)
 
 # 添加可执行文件
 add_executable(lktrs 
+    spk.cpp
     lktrs.cpp 
     accumulator.cpp
     main.cpp

@@ -7,7 +7,9 @@
 #include <vector>
 #include <map>
 #include <utility>
+#include "pp.h"
 #include "accumulator.h"
+#include "spk.h"
 
 class LkTRS {
 private:
@@ -31,32 +33,12 @@ private:
     void hash_to_Gp(element_t result, const std::string& input);
 
 public:
-    struct PublicKey {
-        element_t u_i;
-        element_t y_i;
-    };
-
-    struct SecretKey {
-        element_t x_i;
-        element_t s_i;
-        element_t t_i;
-    };
-
-    // xi,si,ti,yi,cnti,wi
-    struct SPK {
-        SecretKey sk;
-        int cnt;
-        element_t w;
-        std::string spk_generate(); // todo
-        bool spk_verify(const std::string& spk); // todo
-    };
-
     struct Signature {
         element_t V;          // Accumulator value
         element_t S;          // One-time pass
         element_t T;          // Tracing tag
         element_t R;          // Challenge
-        SPK spk;              // SPK - Signature Proof of Knowledge
+        SPKProof spk_proof;   // Signature Proof of Knowledge (like ZK proof)
     };
 
     // Constructor
@@ -68,37 +50,43 @@ public:
 
     std::pair<PublicKey, SecretKey> KeyGen();
 
+    void updateIssue(const std::string& new_issue);
+
     bool Join(PublicKey& pk_j, Signature& sigma,
               element_t& V_out, element_t& w_i_out);
 
     bool Exit(PublicKey& pk_j, Signature& sigma,
               element_t& V_out);
 
-    Signature RSign(const SecretKey& sk_i,
-                    const std::vector<PublicKey>& L,
-                    const std::string& message,
+    Signature RSign(SecretKey& sk_i,
+                    PublicKey& pk_i,
+                    std::vector<PublicKey>& L,
+                    std::string& message,
                     int cnt_i,
                     element_t& nym_out);
 
-    bool RVer(const std::vector<PublicKey>& L,
-              const std::string& message,
-              const element_t nym,
-              const Signature& sigma);
+    bool RVer(std::vector<PublicKey>& L,
+              std::string& message,
+              element_t nym,
+              Signature& sigma);
 
     bool Link(const std::string& m1, const element_t nym1, const Signature& sigma1,
               const std::string& m2, const element_t nym2, const Signature& sigma2);
 
-    PublicKey kTrace( element_t nym1,  element_t nym2, 
-                      std::string& m1,  Signature& sigma1,
-                      std::string& m2,  Signature& sigma2);
+    PublicKey kTrace(element_t nym1, element_t nym2, 
+                     std::string& m1, Signature& sigma1,
+                     std::string& m2, Signature& sigma2);
 
 private:
+    // Helper method
+    bool is_valid_group_element(element_t e);
+
     // Helper method to compute accumulator
-    void compute_accumulator(element_t result, const std::vector<PublicKey>& pks);
+    void compute_accumulator(element_t result, std::vector<PublicKey>& pks);
 
     // Helper method to compute witness
-    void compute_witness(element_t result, const std::vector<PublicKey>& pks,
-                         const PublicKey& excluded_pk);
+    void compute_witness(element_t result, std::vector<PublicKey>& pks,
+                         PublicKey& excluded_pk);
 };
 
 #endif

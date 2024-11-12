@@ -10,6 +10,10 @@ Accumulator::Accumulator(const char* param_str) {
     element_set1(V);  // 初始值为单位元
 }
 
+void Accumulator::set_generator(element_t &g) {
+    element_set(u, g);
+}
+
 // 增加用户，将 x 加入累加器
 void Accumulator::add_user(element_t &x) {
     element_t temp;

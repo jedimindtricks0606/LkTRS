@@ -3,14 +3,12 @@
 
 #include <gmp.h>
 #include <pbc/pbc.h>
-#include <string>
-#include <vector>
-#include <map>
-#include <utility>
+#include "pp.h"
 
 class Accumulator {
 public:
     Accumulator(const char* param_str);
+    void set_generator(element_t &g);
     void add_user(element_t &x);
     void remove_user(element_t &x);
     void get_accumulator_value(element_t &result);

@@ -94,7 +94,7 @@ bool LkTRS::Setup(size_t lambda) {
 }
 
 // KeyGen implementation
-std::pair<LkTRS::PublicKey, LkTRS::SecretKey> LkTRS::KeyGen() {
+std::pair<PublicKey, SecretKey> LkTRS::KeyGen() {
     PublicKey pk;
     SecretKey sk;
 
@@ -120,10 +120,15 @@ std::pair<LkTRS::PublicKey, LkTRS::SecretKey> LkTRS::KeyGen() {
     return std::make_pair(pk, sk);
 }
 
+void LkTRS::updateIssue(const std::string& new_issue) {
+    issue = new_issue;
+}
+
 bool LkTRS::Join(PublicKey& pk_j, Signature& sigma,
                  element_t& V_out, element_t& w_i_out) {
     if(!acc) {
         acc = new Accumulator(param_str);
+        acc->set_generator(g);
     }
     // Add the new user's public key to the accumulator
     try {
@@ -142,6 +147,7 @@ bool LkTRS::Exit(PublicKey& pk_j, Signature& sigma,
                  element_t& V_out) {
     if(!acc) {
         acc = new Accumulator(param_str);
+        acc->set_generator(g);
     }
     // Remove the user's public key from the accumulator
     try {
@@ -161,9 +167,9 @@ bool LkTRS::Link(const std::string& m1, const element_t nym1, const Signature& s
     return nym1 == nym2;
 }
 
-LkTRS::PublicKey LkTRS::kTrace(element_t nym1, element_t nym2, 
-                         std::string& m1,  Signature& sigma1,
-                         std::string& m2,  Signature& sigma2) { 
+PublicKey LkTRS::kTrace(element_t nym1, element_t nym2, 
+                               std::string& m1, Signature& sigma1,
+                               std::string& m2, Signature& sigma2) { 
     // Step 1: If the pseudonyms are different, return an invalid public key
     if (element_cmp(nym1, nym2) != 0) {
         return PublicKey();  // Return an empty PublicKey as an indication of invalid case
@@ -211,4 +217,152 @@ LkTRS::PublicKey LkTRS::kTrace(element_t nym1, element_t nym2,
     return pk;
 }
 
+void LkTRS::compute_accumulator(element_t result, std::vector<PublicKey>& L) {
+    element_init_G1(result, pairing);
+    element_set1(result); // Set to identity element
+    
+    element_t temp;
+    element_init_G1(temp, pairing);
+    
+    for(auto& pk : L) {
+        element_mul(result, result, pk.u_i);
+    }
+    
+    element_clear(temp);
+}
 
+// compute_witness 函数实现
+void LkTRS::compute_witness(element_t result, std::vector<PublicKey>& L, PublicKey& pk_i) {
+    element_init_G1(result, pairing);
+    element_set1(result); // 初始化为单位元
+    
+    element_t temp;
+    element_init_G1(temp, pairing);
+    
+    // 计算除了 pk_i 之外所有公钥的乘积
+    for(auto& pk : L) {
+        if (!element_cmp(pk.u_i, pk_i.u_i)) { // 如果不是当前公钥
+            continue;
+        }
+        element_mul(result, result, pk.u_i);
+    }
+    
+    element_clear(temp);
+}
+
+bool LkTRS::is_valid_group_element(element_t e) {
+    // 检查元素是否为单位元
+    if (element_is1(e)) return false;
+    
+    // 检查元素是否为零
+    if (element_is0(e)) return false;
+    
+    // 额外的群元素验证：e^q 应该等于 1，其中 q 是群的阶
+    element_t temp, result;
+    element_init_G1(temp, pairing);
+    element_init_GT(result, pairing);
+    
+    // 获取群的阶
+    element_t order;
+    element_init_Zr(order, pairing);
+    element_set_str(order, "r", 10); // 使用群的阶，这里需要根据你的参数设置
+    
+    // 计算 e^q
+    element_pow_zn(temp, e, order);
+    
+    bool is_valid = element_is1(temp);
+    
+    element_clear(temp);
+    element_clear(result);
+    element_clear(order);
+    
+    return is_valid;
+}
+
+LkTRS::Signature LkTRS::RSign(SecretKey& sk_i,
+                              PublicKey& pk_i,
+                              std::vector<PublicKey>& L,
+                              std::string& message,
+                              int cnt_i,
+                              element_t& nym_out) {
+    Signature sigma;
+    
+    // 初始化签名组件
+    element_init_G1(sigma.V, pairing);
+    element_init_G1(sigma.S, pairing);
+    element_init_G1(sigma.T, pairing);
+    element_init_Zr(sigma.R, pairing);
+    
+    // 计算一次性匿名标识符 (nym)
+    element_init_G1(nym_out, pairing);
+    element_t r;
+    element_init_Zr(r, pairing);
+    element_random(r);  // 随机选择 r
+    element_pow_zn(nym_out, g, r);  // nym = g^r
+    
+    // 计算累加器值 V
+    compute_accumulator(sigma.V, L);
+    
+    // 计算一次性通行证 S
+    element_t temp;
+    element_init_G1(temp, pairing);
+    element_pow_zn(temp, g, sk_i.s_i);  // g^s_i
+    element_pow_zn(sigma.S, h, r);      // h^r
+    element_mul(sigma.S, sigma.S, temp); // S = g^s_i * h^r
+    
+    // 计算追踪标签 T
+    element_pow_zn(sigma.T, g, sk_i.t_i);  // T = g^t_i
+    
+    // 生成随机挑战 R (在实际应用中这应该是基于消息和其他参数的哈希)
+    element_random(sigma.R);
+    
+    // 这里应该生成 SPK，但我们暂时将其作为抽象接口处理
+    // SPK would prove knowledge of (s_i, t_i, r) satisfying:
+    // 1. S = g^s_i * h^r
+    // 2. T = g^t_i
+    // 3. nym = g^r
+    // 4. V contains u_i
+    SPK spk(&sk_i, &pk_i, cnt_i, pairing);
+    sigma.spk_proof = spk.genProof(); // todo
+    
+    // 清理临时变量
+    element_clear(r);
+    element_clear(temp);
+    
+    return sigma;
+}
+
+bool LkTRS::RVer(std::vector<PublicKey>& L,
+                 std::string& message,
+                 element_t nym,
+                 Signature& sigma) {
+    // 验证累加器值
+    element_t computed_V;
+    compute_accumulator(computed_V, L);
+    
+    // 累加器值不对应 验证失败
+    if (element_cmp(computed_V, sigma.V) != 0) {
+        element_clear(computed_V);
+        return false;
+    }
+    
+    // 验证签名组件是否为有效的群元素
+    if (!is_valid_group_element(sigma.S) || 
+        !is_valid_group_element(sigma.T) || 
+        !is_valid_group_element(nym)) {
+        element_clear(computed_V);
+        return false;
+    }
+    
+    // 这里应该验证 SPK，但我们暂时将其作为抽象接口处理
+    // SPK would verify:
+    // 1. S is properly formed
+    // 2. T is properly formed
+    // 3. nym is properly formed
+    // 4. The prover knows the discrete logarithms
+    // 5. The values are consistent with V
+    bool result = SPK::verify(sigma.spk_proof); // todo
+    
+    element_clear(computed_V);
+    return result;
+}
